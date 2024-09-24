@@ -62,32 +62,27 @@ if __name__ == "__main__":
     
     dt = 1.
     NUM_STEP = 3600
-    
-    mus = []
-    covs = []
+
     px = np.zeros(NUM_STEP)
     py = np.zeros(NUM_STEP)
+    
+    
+    vx = np.zeros(NUM_STEP)
+    vy = np.zeros(NUM_STEP)
     
     for k in range(NUM_STEP):
         
         px[k] = kf.p[0]
         py[k] = kf.p[1]
-        # mus.append(kf.p)
-        # covs.append(kf.P)
         
-        det_before = np.linalg.det(kf.P)
-        
+        kf.predict(dt=1., sigma_p=SIGMA_P)
         kf.update(k=k, 
                   SAT=SAT, 
                   Y=Y(k, measurement), 
                   sigma_eps=SIGMA_EPS, 
                   sigma_eta=SIGMA_ETA)
-        
-        det_after = np.linalg.det(kf.P)
-        
-
-        # kf.predict(dt=1., sigma_p=SIGMA_P)
-        
+    
+    #plt.imshow(np.linalg.inv(kf.S))        
     
     
     
@@ -95,8 +90,9 @@ if __name__ == "__main__":
     plt.plot(px, py)
     plt.plot(pos_receiver[:, 0], pos_receiver[:, 1])
     plt.grid()
-        
-        
+       
+    
+            
     
     
     

@@ -15,26 +15,6 @@ import matplotlib.pyplot as plt
 M = 4
 
 
-# %% Loading data
-
-pos_satellite = np.genfromtxt('input/satellite_positions.csv',
-                              delimiter=',',
-                              skip_header=1)
-
-
-
-Sat0 = np.array([pos_satellite[:, 0], pos_satellite[:, 4]]).T
-Sat1 = np.array([pos_satellite[:, 1], pos_satellite[:, 5]]).T
-Sat2 = np.array([pos_satellite[:, 2], pos_satellite[:, 6]]).T
-Sat3 = np.array([pos_satellite[:, 3], pos_satellite[:, 7]]).T
-
-SAT = np.array([Sat0, Sat1, Sat2, Sat3])
-
-pos_receiver = np.genfromtxt('ground_truth/receiver_positions.csv',
-                              delimiter=',',
-                              skip_header=1)
-
-
 # %%
 
 
@@ -55,13 +35,28 @@ class KF():
         self.P = np.eye(4+M, 4+M)
         
     def predict(self, dt : float, sigma_p : float) -> None:
-        
-        # Initiate F matrix
+        """
+        Prediction step of KF
+
+        Parameters
+        ----------
+        dt : float
+            Time step.
+        sigma_p : float
+            Evolution noise.
+
+        Returns
+        -------
+        None
+            Proceed to state k to stake k+1.
+
+        """
+        # Initiate state transition matrix
         F = np.eye(4+M)
         F[0, 2] = dt
         F[1, 3] = dt
         
-        # Initiate Q matrix
+        # Initiate process noice covariance matrix
         Q = np.zeros((4+M, 4+M))
         Q[0, 0] = sigma_p ** 2
         Q[1, 1] = sigma_p ** 2
@@ -69,6 +64,7 @@ class KF():
         # Create state vector
         x = np.concatenate((self.p, self.v, self.n))
         
+        # Compute new state vector and covariance matrix
         new_x = F @ x
         new_P = F @ self.P @ F.T + Q
         
@@ -80,9 +76,27 @@ class KF():
     
     
     def _coef_H(self, i : int, j : int, k : int, SAT : np.array) -> float :
-        
+        """
+        Compute the coefficient of the Jacobian matrix H at indices (i,j) at
+        time step k.
 
-        
+        Parameters
+        ----------
+        i : int
+            row index.
+        j : int
+            column index.
+        k : int
+            time number of step.
+        SAT : np.array
+            Array containing all satellite position.
+
+        Returns
+        -------
+        float
+            coefficient of h at (i,j).
+
+        """
         if i == 0 or i == 4:
             
             return -(SAT[j, k, 0] - self.p[0]) / \
@@ -97,29 +111,57 @@ class KF():
             return 0.
         
     
-    def _dhx(self, Sat : np.array) -> float:
-        return -px * (Sat[0] - self.p[0]) / np.linalg.norm(Sat - self.p)
-    
-    def _dhy(self, Sat : np.array) -> float:
-        return -py * (Sat[1] - self.p[1]) / np.linalg.norm(Sat - self.p)
-    
-    
     def _init_H(self, k : int, SAT : np.array) -> np.array:
-        
+        """
+        Compute Jacobian matrix for measurement step of KF
+
+        Parameters
+        ----------
+        k : int
+            number of time step.
+        SAT : np.array
+            Array containing all satellite position.
+
+        Returns
+        -------
+        H : np.array
+            Array of shape (2M, 4+M).
+
+        """
         global M
         
+        # Initiate matrix
         H = np.zeros((2 * M, 4 + M))
         
+        # Double for loop to cross every matrix coefficient
         for i in range(H.shape[0]):
             for j in range(H.shape[1]):
                 
+                # Using the correct satellite
                 jj = j % M
                 
+                # Computing Hij coefficient
                 H[i, j] = self._coef_H(i, jj, k, SAT)  
+        
         return H
     
-    def _init_R(self, k : int, sigma_eps : float, sigma_eta : float) -> np.array:
-        
+    def _init_R(self, sigma_eps : float, sigma_eta : float) -> np.array:
+        """
+        Compute covariance matrix associated to measurement noise
+
+        Parameters
+        ----------
+        sigma_eps : float
+            measurement noise.
+        sigma_eta : float
+            measurement noise.
+
+        Returns
+        -------
+        K : np.array
+            Array of shape (2M, 2M).
+
+        """
         global M
         
         v1 = sigma_eps ** 2 * np.ones((M,))
@@ -136,23 +178,49 @@ class KF():
                Y : np.array,
                sigma_eps : float, 
                sigma_eta : float) -> None:
+        """
+        Updated value of state vector using measutement step of KF
+
+        Parameters
+        ----------
+        k : int
+            number of time step.
+        SAT : np.array
+            Array containing all satellite position.
+        Y : np.array
+            Measurement model at step k, must be of shape (4+M,).
+        sigma_eps : float
+            measurement noise.
+        sigma_eta : float
+            measurement noise.
+
+        Returns
+        -------
+        None
+            Perform measurement step.
+
+        """
         
         H = self._init_H(k=k, SAT=SAT)
-        R = self._init_R(k=k, sigma_eps=sigma_eps, sigma_eta=sigma_eta)
+        R = self._init_R(sigma_eps=sigma_eps, sigma_eta=sigma_eta)
+        
+        self.H = H
+        self.R = R
         
         # Creating state vector
         x = np.concatenate((self.p, self.v, self.n))
         
-        # Compute matrix
-        S = H @ self.P @ H.T + R
-        
-        # Compute Kalman matrix
-        K = self.P @ H.T @ np.linalg.inv(S)
-        
         # Computing residual vector
         v = Y - H @ x
         
+        # Compute S matrix
+        S = H @ self.P @ H.T + R
         
+        self.S = S
+        # Compute Kalman matrix
+        K = self.P @ H.T @ np.linalg.inv(S)
+        
+        self.K = K
         
         new_P = self.P - K @ H @ self.P
         new_x = x + K @ v
@@ -163,50 +231,6 @@ class KF():
         self.n = new_x[4::]
         self.P = new_P
     
-   
-if __name__ == "__main__":
-    
-    p0 = np.array([0, 0]) 
-    v0 = np.array([2, 2])
-    n0 = np.array([0, 0, 0, 0])
-    kf = KF(initial_p=p0, initial_v=v0, initial_n=n0)
-    
-    # for _ in range(10):
-        
-    #     det_before = np.linalg.det(kf.P)
-    #     kf.predict(dt=1.)
-    #     det_after = np.linalg.det(kf.P)
-    #     print(det_after > det_before)
-    kf.update(k=0)
-    
-    
-    
-    # %%
-    # plt.ion()
-    # plt.figure()
-    dt = 1.
-    NUM_STEP = 3600
-    
-    mus = []
-    covs = []
-    px = np.zeros(NUM_STEP)
-    py = np.zeros(NUM_STEP)
-    
-    for t in range(NUM_STEP):
-        
-        px[t] = kf.p[0]
-        py[t] = kf.p[1]
-        # mus.append(kf.p)
-        # covs.append(kf.P)
-    
-        kf.predict(dt=1.)
-    
-    plt.plot(px, py)
-    
-
-
-    plt.plot(pos_receiver[:, 0], pos_receiver[:, 1])
-    plt.grid()
     
 
 
