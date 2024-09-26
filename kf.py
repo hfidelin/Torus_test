@@ -56,6 +56,11 @@ class KF():
         F[0, 2] = dt
         F[1, 3] = dt
         
+        # F[4, 4] = 1000
+        # F[5, 5] = 1000
+        # F[6, 6] = 1000
+        # F[7, 7] = 1000
+        
         # Initiate process noice covariance matrix
         Q = np.zeros((4+M, 4+M))
         Q[0, 0] = sigma_p ** 2
@@ -97,12 +102,12 @@ class KF():
             coefficient of h at (i,j).
 
         """
-        if i == 0 or i == 4:
+        if i == 0:
             
             return -(SAT[j, k, 0] - self.p[0]) / \
                 np.linalg.norm(SAT[j, k, :] - self.p)
         
-        elif i == 1 or i == 5: 
+        elif i == 1: 
             
             return -(SAT[j, k, 1] - self.p[1]) / \
                 np.linalg.norm(SAT[j, k, :] - self.p)
@@ -125,7 +130,7 @@ class KF():
         Returns
         -------
         H : np.array
-            Array of shape (2M, 4+M).
+            Array of shape (4+M, 2M).
 
         """
         global M
@@ -188,7 +193,7 @@ class KF():
         SAT : np.array
             Array containing all satellite position.
         Y : np.array
-            Measurement model at step k, must be of shape (4+M,).
+            Measurement model at step k, must be of shape (2M,).
         sigma_eps : float
             measurement noise.
         sigma_eta : float
@@ -211,6 +216,7 @@ class KF():
         x = np.concatenate((self.p, self.v, self.n))
         
         # Computing residual vector
+        print(x.shape)
         v = Y - H @ x
         
         # Compute S matrix
