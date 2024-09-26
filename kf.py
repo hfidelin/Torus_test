@@ -216,8 +216,7 @@ class KF():
         x = np.concatenate((self.p, self.v, self.n))
         
         # Computing residual vector
-        print(x.shape)
-        v = Y - H @ x
+        self.innov = Y - H @ x
         
         # Compute S matrix
         S = H @ self.P @ H.T + R
@@ -229,7 +228,7 @@ class KF():
         self.K = K
         
         new_P = self.P - K @ H @ self.P
-        new_x = x + K @ v
+        new_x = x + K @ self.innov
         
         #update state vector and covariance matrix
         self.p = new_x[0: 2]
