@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     SAT = np.array([Sat0, Sat1, Sat2, Sat3])
 
-    pos_receiver = np.genfromtxt('ground_truth/receiver_positions.csv',
+    true_pos = np.genfromtxt('ground_truth/receiver_positions.csv',
                                   delimiter=',',
                                   skip_header=1)
     
@@ -53,9 +53,13 @@ if __name__ == "__main__":
     
     
     
-    
+    # Initial position
     p0 = np.array([0, 0]) 
+    
+    # Constant velocity
     v0 = np.array([2, 2])
+    
+     # Initial ambiguity vector
     n0 = np.array([0, 0, 0, 0])
     
     kf = KF(initial_p=p0, initial_v=v0, initial_n=n0)
@@ -70,10 +74,29 @@ if __name__ == "__main__":
     vx = np.zeros(NUM_STEP)
     vy = np.zeros(NUM_STEP)
     
+    n1 = np.zeros(NUM_STEP)
+    n2 = np.zeros(NUM_STEP)
+    n3 = np.zeros(NUM_STEP)
+    n4 = np.zeros(NUM_STEP)
+    
+    err_pos = np.zeros(NUM_STEP)
+    err_vel = np.zeros(NUM_STEP)
+    rmse = np.zeros(NUM_STEP)
+    
+    
     for k in range(NUM_STEP):
         
-        px[k] = kf.p[0]
-        py[k] = kf.p[1]
+        # Position error
+        err_pos[k] = np.linalg.norm(kf.p - true_pos[k])
+        
+        # Velocity error
+        err_vel[k] = np.linalg.norm(kf.v - v0)
+
+        
+        n1[k] = kf.n[0]
+        n2[k] = kf.n[1]
+        n3[k] = kf.n[2]
+        n4[k] = kf.n[3]
         
         kf.predict(dt=1., sigma_p=SIGMA_P)
         kf.update(k=k, 
@@ -82,23 +105,45 @@ if __name__ == "__main__":
                   sigma_eps=SIGMA_EPS, 
                   sigma_eta=SIGMA_ETA)
     
-    #plt.imshow(np.linalg.inv(kf.S))        
+    # RMSE 
+    rmse[k] = np.sqrt(((Y(k, measurement) - kf.innov) **2).mean())
     
     
+    # %% Position error in loglog scale
     
-    # %%
-    plt.plot(px, py)
-    plt.plot(pos_receiver[:, 0], pos_receiver[:, 1])
+    plt.loglog(err_pos, 'b')
+    plt.title(r"Position error")
+    plt.xlabel("Iteration")
+    plt.ylabel(r"Error$")
     plt.grid()
-       
     
-            
+
+    # %% Velocity error in loglog scale
+    
+    plt.loglog(err_vel, 'b')
+    plt.title(r"Velocity error")
+    plt.xlabel("Iteration")
+    plt.ylabel(r"Error$")
+    plt.grid()
     
     
+    # %% Ambiguity number
     
+    plt.plot(n1, label=r"$n_1$")
+    plt.plot(n2, label=r"$n_2$")
+    plt.plot(n3, label=r"$n_3$")
+    plt.plot(n4, label=r"$n_4$")
     
+    plt.grid()
+    plt.legend()
     
+    # %% RMSE of innovation
     
+    plt.loglog(rmse)
+    plt.title(r"RMSE between innovation and observation model")
+    plt.xlabel("Iteration")
+    plt.ylabel(r"Errorrmse$")
+    plt.grid()
     
     
     
