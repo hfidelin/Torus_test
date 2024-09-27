@@ -8,12 +8,6 @@ Kalman Filter class
 @author: fidelin
 """
 import numpy as np
-import matplotlib.pyplot as plt
-
-# Declaring some global variable
-
-M = 4
-
 
 # %%
 
@@ -21,18 +15,20 @@ M = 4
 class KF():
     
     def __init__(self, 
+                 M : int,
                  initial_p : np.array, 
                  initial_v : np.array, 
                  initial_n : np.array) -> None:
         
-        global M
+       
+        self.M = M
         
         self.p = initial_p
         self.v = initial_v
         self.n = initial_n
         
         # Initialize P matrix at identity for now
-        self.P = np.eye(4+M, 4+M)
+        self.P = np.eye(4+self.M, 4+self.M)
         
     def predict(self, dt : float, sigma_p : float) -> None:
         """
@@ -52,7 +48,7 @@ class KF():
 
         """
         # Initiate state transition matrix
-        F = np.eye(4+M)
+        F = np.eye(4+self.M)
         F[0, 2] = dt
         F[1, 3] = dt
         
@@ -62,7 +58,7 @@ class KF():
         # F[7, 7] = 1000
         
         # Initiate process noice covariance matrix
-        Q = np.zeros((4+M, 4+M))
+        Q = np.zeros((4+self.M, 4+self.M))
         Q[0, 0] = sigma_p ** 2
         Q[1, 1] = sigma_p ** 2
         
@@ -133,17 +129,16 @@ class KF():
             Array of shape (4+M, 2M).
 
         """
-        global M
         
         # Initiate matrix
-        H = np.zeros((2 * M, 4 + M))
+        H = np.zeros((2 * self.M, 4 + self.M))
         
         # Double for loop to cross every matrix coefficient
         for i in range(H.shape[0]):
             for j in range(H.shape[1]):
                 
                 # Using the correct satellite
-                jj = j % M
+                jj = j % self.M
                 
                 # Computing Hij coefficient
                 H[i, j] = self._coef_H(i, jj, k, SAT)  
@@ -167,10 +162,9 @@ class KF():
             Array of shape (2M, 2M).
 
         """
-        global M
         
-        v1 = sigma_eps ** 2 * np.ones((M,))
-        v2 = sigma_eta ** 2 * np.ones((M,))
+        v1 = sigma_eps ** 2 * np.ones((self.M,))
+        v2 = sigma_eta ** 2 * np.ones((self.M,))
         
         v = np.hstack((v1, v2))
         K = np.diag(v)
@@ -180,7 +174,7 @@ class KF():
     
     def update(self, k : int, 
                SAT : np.array, 
-               Y : np.array,
+               y : np.array,
                sigma_eps : float, 
                sigma_eta : float) -> None:
         """
@@ -192,7 +186,7 @@ class KF():
             number of time step.
         SAT : np.array
             Array containing all satellite position.
-        Y : np.array
+        y : np.array
             Measurement model at step k, must be of shape (2M,).
         sigma_eps : float
             measurement noise.
@@ -216,7 +210,7 @@ class KF():
         x = np.concatenate((self.p, self.v, self.n))
         
         # Computing residual vector
-        self.innov = Y - H @ x
+        self.innov = y - H @ x
         
         # Compute S matrix
         S = H @ self.P @ H.T + R
