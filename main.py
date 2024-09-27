@@ -12,23 +12,18 @@ from kf import KF
 
 # Declaring some global variable
 
+M = 4
 LAMBDA = 1000.
 SIGMA_EPS = 10.
 SIGMA_ETA = 50.
 SIGMA_P = 10.
+DT = 1.
+NUM_STEP = 3600
 
 
-def Y(k, measurment):
-    return np.array([measurement[:, 0][k],
-                     measurement[:, 1][k],
-                     measurement[:, 2][k],
-                     measurement[:, 3][k],
-                     measurement[:, 4][k],
-                     measurement[:, 5][k],
-                     measurement[:, 6][k],
-                     measurement[:, 7][k]])
 
 if __name__ == "__main__":
+    
     
     pos_satellite = np.genfromtxt('input/satellite_positions.csv',
                                   delimiter=',',
@@ -51,6 +46,14 @@ if __name__ == "__main__":
                                 delimiter=',',
                                 skip_header=1)
     
+    y = np.array([measurement[:, 0],
+                  measurement[:, 1],
+                  measurement[:, 2],
+                  measurement[:, 3],
+                  measurement[:, 4],
+                  measurement[:, 5],
+                  measurement[:, 6],
+                  measurement[:, 7]]).T
     
     
     # Initial position
@@ -59,20 +62,11 @@ if __name__ == "__main__":
     # Constant velocity
     v0 = np.array([2, 2])
     
-     # Initial ambiguity vector
+    # Initial ambiguity vector
     n0 = np.array([0, 0, 0, 0])
     
-    kf = KF(initial_p=p0, initial_v=v0, initial_n=n0)
+    kf = KF(M=M, initial_p=p0, initial_v=v0, initial_n=n0)
     
-    dt = 1.
-    NUM_STEP = 3600
-
-    px = np.zeros(NUM_STEP)
-    py = np.zeros(NUM_STEP)
-    
-    
-    vx = np.zeros(NUM_STEP)
-    vy = np.zeros(NUM_STEP)
     
     n1 = np.zeros(NUM_STEP)
     n2 = np.zeros(NUM_STEP)
@@ -83,7 +77,7 @@ if __name__ == "__main__":
     err_vel = np.zeros(NUM_STEP)
     rmse = np.zeros(NUM_STEP)
     
-    
+    # TIME ITERATION LOOP
     for k in range(NUM_STEP):
         
         # Position error
@@ -92,21 +86,24 @@ if __name__ == "__main__":
         # Velocity error
         err_vel[k] = np.linalg.norm(kf.v - v0)
 
-        
+        # Retrieving ambiguity number
         n1[k] = kf.n[0]
         n2[k] = kf.n[1]
         n3[k] = kf.n[2]
         n4[k] = kf.n[3]
         
-        kf.predict(dt=1., sigma_p=SIGMA_P)
+        # Prediction step
+        kf.predict(dt=DT, sigma_p=SIGMA_P)
+        
+        # Updating step
         kf.update(k=k, 
                   SAT=SAT, 
-                  Y=Y(k, measurement), 
+                  y=y[k], 
                   sigma_eps=SIGMA_EPS, 
                   sigma_eta=SIGMA_ETA)
     
-    # RMSE 
-    rmse[k] = np.sqrt(((Y(k, measurement) - kf.innov) **2).mean())
+        # RMSE 
+        rmse[k] = np.sqrt(((y[k] - kf.innov) **2).mean())
     
     
     # %% Position error in loglog scale
@@ -116,7 +113,6 @@ if __name__ == "__main__":
     plt.xlabel("Iteration")
     plt.ylabel(r"Error$")
     plt.grid()
-    
 
     # %% Velocity error in loglog scale
     
@@ -126,13 +122,16 @@ if __name__ == "__main__":
     plt.ylabel(r"Error$")
     plt.grid()
     
-    
     # %% Ambiguity number
     
     plt.plot(n1, label=r"$n_1$")
     plt.plot(n2, label=r"$n_2$")
     plt.plot(n3, label=r"$n_3$")
     plt.plot(n4, label=r"$n_4$")
+    
+    plt.title(r"Ambiguity numbers")
+    plt.xlabel("Iteration")
+    plt.ylabel(r"$n$")
     
     plt.grid()
     plt.legend()
@@ -142,7 +141,7 @@ if __name__ == "__main__":
     plt.loglog(rmse)
     plt.title(r"RMSE between innovation and observation model")
     plt.xlabel("Iteration")
-    plt.ylabel(r"Errorrmse$")
+    plt.ylabel(r"Error rmse")
     plt.grid()
     
     
